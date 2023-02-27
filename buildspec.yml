@@ -1,0 +1,52 @@
+version: 0.2
+
+env:
+  variables:
+    IMAGE_NAME: "shopizer-admin"
+    CONTAINER_REPO_URI: "439724164519.dkr.ecr.ap-south-1.amazonaws.com/shopizer-admin"
+    AWS_REGION: "ap-south-1"
+  
+phases:
+  install:
+    runtime-versions:
+      nodejs: 12.x
+  
+  pre_build:
+    commands:
+      - echo installing Angular CLI
+      - npm install -g @angular/cli@13.3.x
+      - npm install --legacy-peer-deps
+      - ng build
+      - echo Logging in to Amazon ECR..
+      - aws --version
+      - $(aws ecr get-login --no-include-email --region $AWS_REGION)
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+
+  build:
+    commands:
+      - echo build started on `date`
+      - echo building the docker image
+      - docker build -t $CONTAINER_REPO_URI:latest .
+      - docker tag $CONTAINER_REPO_URI:latest $CONTAINER_REPO_URI:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - echo build completed on `date`
+      - echo Pushing the docker images
+      - echo build completed on `date`
+      - echo Pushing the docker images
+      - docker push $CONTAINER_REPO_URI:latest 
+      - docker push $CONTAINER_REPO_URI:$IMAGE_TAG
+      - echo Writing the image definitons file..
+      - printf '[{"name":"CONTAINER_NAME","imageUri":"IMAGE_URI"}]' > imagedefinitions.json
+      - sed -i -e "s|CONTAINER_NAME|shopizer-admin|g" imagedefinitions.json
+      - sed -i -e "s|IMAGE_URI|$CONTAINER_REPO_URI:$IMAGE_TAG|g" imagedefinitions.json
+      - cat imagedefinitions.json
+      
+artifacts:
+  files:
+    - imagedefinitions.json  
+
+cache:
+  paths:
+    - '/node_modules/**/*' 
